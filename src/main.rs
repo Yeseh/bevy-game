@@ -5,22 +5,23 @@ mod base_builder;
 mod unit;
 mod player;
 
-use forest_generator::{generate_forest_system};
+use forest_generator::ForestPlugin;
 use base_builder::{spawn_base_system};
-use unit::{initial_unit_system, unit_spawn_system, unit_target_system};
-use player::{spawn_player_system, player_movement_system};
+use unit::UnitPlugin;
+use player::PlayerPlugin;
 use bevy::prelude::*;
 
-pub struct Destructable {
-    pub should_destroy: bool
-}
-
+pub struct Destroyable(bool);
 pub struct MovementSpeed(f32);
+pub struct BaseLocation(Vec3);
+
+pub struct Storage(f32);
 
 struct WinSize {
     w: f32,
     h: f32
 }
+
 
 pub struct Area {
    pub x_max: f32,
@@ -44,7 +45,7 @@ pub struct Interactable {
     range: Vec2
 }
 
-// Component
+#[derive(Debug, Copy, Clone)]
 pub struct Storable {
     pub current: f32,
     pub max: f32,
@@ -52,7 +53,7 @@ pub struct Storable {
 }
 
 impl Storable {
-    fn new(min: f32, max: f32) -> Storable {
+    pub fn new(min: f32, max: f32) -> Storable {
         Storable {
             current: max,
             max: max,
@@ -60,12 +61,38 @@ impl Storable {
         }
     }
 
-    fn modify_by(&mut self, amount: f32) { 
-        self.current = (self.current + amount).clamp(self.min, self.max);
+    pub fn is_empty(&self) -> bool {
+        self.current <= self.min
+    }
+
+    // Modifies by amount, returns the actual applied modification
+    pub fn modify_by(&mut self, amount: f32) -> f32 { 
+        let mut diff = self.current + amount;
+        let clamp = diff.clamp(self.min, self.max);
+
+        if clamp == self.max {
+            diff = self.max - self.current;
+        }
+        else if clamp == self.min {
+            diff = self.min - self.current
+        }
+
+        self.current = clamp; 
+
+        diff
     }
 }
 
-
+pub fn despawn_destroyed_entity_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &Destroyable)>
+) {
+    for (entity, destroyed) in query.iter_mut() {
+        if destroyed.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
 /*
 enum DroneState {
     Gathering,
@@ -112,13 +139,12 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.9,0.9,0.9)))
         .insert_resource(Area::new(Vec2::new(1280.0, 720.0)))
+        .insert_resource(BaseLocation(Vec3::ZERO))
+        .add_system(despawn_destroyed_entity_system.system())
         .add_startup_system(setup.system())
         .add_startup_system(spawn_base_system.system())
-        .add_startup_system(initial_unit_system.system())
-        .add_startup_system(generate_forest_system.system())
-        .add_startup_system(spawn_player_system.system())
-        .add_system(unit_spawn_system.system())
-        // .add_system(unit_target_system.system())
-        .add_system(player_movement_system.system())
+        .add_plugin(PlayerPlugin)
+        .add_plugin(UnitPlugin)
+        .add_plugin(ForestPlugin)
         .run();
 }

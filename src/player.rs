@@ -8,6 +8,16 @@ use crate::{
 };
 
 pub struct Player;
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app
+            .add_startup_system(spawn_player_system.system())
+            .add_system(player_movement_system.system())
+            ;
+    }
+}
 
 pub fn spawn_player_system( 
     mut commands: Commands, 
@@ -31,7 +41,9 @@ pub fn player_movement_system(
     mut query: Query<(&MovementSpeed, &mut Transform, With<Player>)>
 ) { 
     if let Ok((speed, mut transform, _)) = query.single_mut() {
-        let dir = if keyboard_input.pressed(KeyCode::Left) {
+        
+        let dir = 
+        if keyboard_input.pressed(KeyCode::Left) {
             Vec3::new(-1., 0.,0.)
         }
         else if keyboard_input.pressed(KeyCode::Right) {
