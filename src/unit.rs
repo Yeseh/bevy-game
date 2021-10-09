@@ -33,7 +33,7 @@ impl Plugin for UnitPlugin {
             .insert_resource(MovementTimer(Timer::from_seconds(2.0, true)))
             .add_startup_system(initial_unit_system.system())
             .add_system(unit_target_system.system())
-            // .add_system(unit_resource_collision_system.system())
+            .add_system(unit_resource_collision_system.system())
             // .add_system(unit_movement_system.system())
             .add_system(unit_spawn_system.system());
     }
@@ -78,18 +78,14 @@ pub fn unit_spawn_system(
 }
 
 pub fn unit_resource_collision_system(
-    mut query: QuerySet <(
-        Query<(&Sprite, &Transform, &mut Storable), (With<Unit>, Without<Tree>)>,
-        Query<(&Sprite, &Transform, &mut Storable), (With<Tree>, Without<Unit>)>
-    )>
+    mut unit_query: Query<(&Sprite, &Transform, &mut Storable, With<Unit>, Without<Tree>)>,
+    mut tree_query: Query<(&Sprite, &Transform, &mut Storable, With<Tree>, Without<Unit>)>
 ) {
-    // let q1 = query.q1_mut().iter_mut().collect();
-
-    for (unit_sprite, unit_tf, mut unit_store) in query.q0_mut().iter_mut() 
+    for (unit_sprite, unit_tf, mut unit_store, _, _) in unit_query.iter_mut() 
     {
         let unit_size = unit_sprite.size * Vec2::from(unit_tf.scale.abs());
 
-        for (tree_sprite, tree_tf, mut tree_store) in query.q1_mut().iter_mut()
+        for (tree_sprite, tree_tf, mut tree_store, _, _) in tree_query.iter_mut()
         {
             let tree_size = tree_sprite.size * Vec2::from(tree_tf.scale.abs());
 
@@ -100,8 +96,11 @@ pub fn unit_resource_collision_system(
                 tree_size
             );
 
+            println!("Checking collision");
+
             if let Some(_) = collision {
                 let taken = tree_store.modify_by(-(unit_store.max - unit_store.current));
+                println!("Took {} from the tree, {} left", taken, tree_store.current);
                 unit_store.modify_by(taken);
             }
         }
@@ -112,6 +111,7 @@ pub fn unit_target_system(
     time: Res<Time>,
     mut unit_query: Query<(&mut Unit, &mut Transform, &mut Timer, &mut Storable)>,
     existing_trees: Res<ExistingTrees>,
+    base_location: Res<BaseLocation>
 ) {
     for (
         mut unit, 
